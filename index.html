@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pocket Signal Scanner</title>
+
+<style>
+*{
+    box-sizing:border-box;
+    margin:0;
+    padding:0;
+    font-family:Arial,sans-serif;
+}
+
+body{
+    background:#080b12;
+    color:white;
+    min-height:100vh;
+    padding:20px;
+}
+
+.container{
+    max-width:520px;
+    margin:auto;
+}
+
+.header{
+    text-align:center;
+    margin:20px 0 25px;
+}
+
+.header h1{
+    font-size:28px;
+}
+
+.header p{
+    color:#8d96a8;
+    margin-top:7px;
+}
+
+.card{
+    background:#111722;
+    border:1px solid #202938;
+    border-radius:18px;
+    padding:18px;
+    margin-bottom:15px;
+}
+
+label{
+    display:block;
+    color:#aab3c2;
+    font-size:14px;
+    margin-bottom:7px;
+}
+
+select,
+input[type=file]{
+    width:100%;
+    background:#080d15;
+    color:white;
+    border:1px solid #303b4e;
+    border-radius:10px;
+    padding:13px;
+    margin-bottom:15px;
+}
+
+button{
+    width:100%;
+    border:0;
+    border-radius:12px;
+    padding:15px;
+    background:#1877ff;
+    color:white;
+    font-size:16px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+button:disabled{
+    opacity:.5;
+}
+
+.preview{
+    width:100%;
+    max-height:350px;
+    object-fit:contain;
+    border-radius:12px;
+    margin-top:10px;
+    display:none;
+    background:#05070b;
+}
+
+.status{
+    text-align:center;
+    color:#9da7b8;
+    margin-top:12px;
+    font-size:14px;
+}
+
+.signal{
+    text-align:center;
+    font-size:42px;
+    font-weight:900;
+    padding:15px;
+}
+
+.call{
+    color:#25e58a;
+}
+
+.put{
+    color:#ff4d67;
+}
+
+.wait{
+    color:#ffc34d;
+}
+
+.info{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+}
+
+.box{
+    background:#0a0f17;
+    border-radius:10px;
+    padding:12px;
+    text-align:center;
+}
+
+.box small{
+    color:#8993a5;
+    display:block;
+    margin-bottom:5px;
+}
+
+.box b{
+    font-size:18px;
+}
+
+.reason{
+    margin-top:15px;
+    line-height:1.5;
+    color:#c7ced9;
+}
+
+.raw{
+    margin-top:15px;
+    background:#070a0f;
+    border-radius:10px;
+    padding:12px;
+    white-space:pre-wrap;
+    word-break:break-word;
+    font-size:12px;
+    color:#8f9aac;
+    display:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>📊 Pocket Signal Scanner</h1>
+        <p>OTC Chart Analysis</p>
+    </div>
+
+    <div class="card">
+
+        <label>Aktiv</label>
+        <select id="asset">
+            <option value="GBP/USD OTC">GBP/USD OTC</option>
+            <option value="EUR/USD OTC">EUR/USD OTC</option>
+            <option value="USD/JPY OTC">USD/JPY OTC</option>
+            <option value="AUD/USD OTC">AUD/USD OTC</option>
+            <option value="USD/CAD OTC">USD/CAD OTC</option>
+        </select>
+
+        <label>Müddət</label>
+        <select id="duration">
+            <option value="30s">30 saniyə</option>
+            <option value="1m">1 dəqiqə</option>
+            <option value="5m">5 dəqiqə</option>
+        </select>
+
+        <label>Chart şəkli</label>
+        <input
+            type="file"
+            id="image"
+            accept="image/*"
+        >
+
+        <img id="preview" class="preview">
+
+        <button id="analyze">
+            🔍 ANALİZ ET
+        </button>
+
+        <div id="status" class="status">
+            Chart şəklini seç.
+        </div>
+
+    </div>
+
+    <div id="resultCard" class="card" style="display:none">
+
+        <div id="signal" class="signal">
+            WAIT
+        </div>
+
+        <div class="info">
+
+            <div class="box">
+                <small>Confidence</small>
+                <b id="confidence">-</b>
+            </div>
+
+            <div class="box">
+                <small>Müddət</small>
+                <b id="resultDuration">-</b>
+            </div>
+
+        </div>
+
+        <div class="reason">
+            <b>Analiz:</b>
+            <p id="reason">-</p>
+        </div>
+
+        <div id="raw" class="raw"></div>
+
+    </div>
+
+</div>
+
+<script>
+
+const API_URL =
+    "https://pocket-signal-12.onrender.com/analyze-frame";
+
+const imageInput =
+    document.getElementById("image");
+
+const preview =
+    document.getElementById("preview");
+
+const analyzeButton =
+    document.getElementById("analyze");
+
+const statusText =
+    document.getElementById("status");
+
+const resultCard =
+    document.getElementById("resultCard");
+
+const signal =
+    document.getElementById("signal");
+
+const confidence =
+    document.getElementById("confidence");
+
+const reason =
+    document.getElementById("reason");
+
+const resultDuration =
+    document.getElementById("resultDuration");
+
+const raw =
+    document.getElementById("raw");
+
+
+/* Şəkli göstər */
+
+imageInput.addEventListener("change", function(){
+
+    const file = this.files[0];
+
+    if(!file){
+        preview.style.display = "none";
+        return;
+    }
+
+    preview.src = URL.createObjectURL(file);
+    preview.style.display = "block";
+
+    statusText.textContent =
+        "Şəkil hazırdır. ANALİZ ET düyməsinə bas.";
+
+});
+
+
+/* Analiz */
+
+analyzeButton.addEventListener("click", async function(){
+
+    const file = imageInput.files[0];
+
+    if(!file){
+        alert("Əvvəlcə chart şəklini seç.");
+        return;
+    }
+
+    const asset =
+        document.getElementById("asset").value;
+
+    const duration =
+        document.getElementById("duration").value;
+
+    analyzeButton.disabled = true;
+
+    statusText.textContent =
+        "⏳ Chart analiz edilir...";
+
+    resultCard.style.display = "none";
+
+    try{
+
+        const formData = new FormData();
+
+        formData.append("asset", asset);
+        formData.append("duration", duration);
+        formData.append("image", file);
+
+        const response =
+            await fetch(API_URL, {
+                method:"POST",
+                body:formData
+            });
+
+        const text =
+            await response.text();
+
+        let data;
+
+        try{
+            data = JSON.parse(text);
+        }
+        catch{
+            data = {
+                raw:text
+            };
+        }
+
+        if(!response.ok){
+            throw new Error(
+                data.detail ||
+                data.error ||
+                text ||
+                "Server xətası"
+            );
+        }
+
+        showResult(data, duration);
+
+    }
+    catch(error){
+
+        statusText.textContent =
+            "❌ Analiz alınmadı.";
+
+        resultCard.style.display = "block";
+
+        signal.textContent = "ERROR";
+        signal.className = "signal wait";
+
+        confidence.textContent = "-";
+
+        resultDuration.textContent =
+            duration;
+
+        reason.textContent =
+            error.message;
+
+        raw.style.display = "none";
+
+    }
+
+    analyzeButton.disabled = false;
+
+});
+
+
+/* Nəticəni göstər */
+
+function showResult(data, duration){
+
+    resultCard.style.display = "block";
+
+    statusText.textContent =
+        "✅ Analiz tamamlandı.";
+
+    let result =
+        data.signal ||
+        data.action ||
+        data.direction ||
+        data.prediction ||
+        data.result ||
+        "";
+
+    result =
+        String(result).toUpperCase();
+
+    if(result.includes("CALL") ||
+       result.includes("BUY") ||
+       result.includes("UP")){
+
+        signal.textContent = "CALL ↑";
+        signal.className = "signal call";
+
+    }
+    else if(
+        result.includes("PUT") ||
+        result.includes("SELL") ||
+        result.includes("DOWN")
+    ){
+
+        signal.textContent = "PUT ↓";
+        signal.className = "signal put";
+
+    }
+    else{
+
+        signal.textContent = "WAIT";
+        signal.className = "signal wait";
+
+    }
+
+
+    const conf =
+        data.confidence ??
+        data.probability ??
+        data.confidence_score ??
+        "-";
+
+    confidence.textContent =
+        typeof conf === "number"
+        ? conf + "%"
+        : conf;
+
+
+    resultDuration.textContent =
+        data.duration ||
+        duration;
+
+
+    reason.textContent =
+        data.reason ||
+        data.reasoning ||
+        data.analysis ||
+        data.explanation ||
+        data.message ||
+        "Server analiz nəticəsi qaytardı.";
+
+
+    raw.textContent =
+        JSON.stringify(data, null, 2);
+
+    raw.style.display = "block";
+
+}
+
+</script>
+
+</body>
+</html>
